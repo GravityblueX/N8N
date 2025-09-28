@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-api
+  namespace: devops-showcase
+  labels:
+    app: devops-api
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: devops-api
+  template:
+    metadata:
+      labels:
+        app: devops-api
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+      - name: api
+        image: devops-showcase/api:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: ENV
+          valueFrom:
+            configMapKeyRef:
+              name: api-config
+              key: ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: api-config
+              key: LOG_LEVEL
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: custom-exporter
+  namespace: devops-showcase
+  labels:
+    app: custom-exporter
+spec:
+  selector:
+    matchLabels:
+      app: custom-exporter
+  template:
+    metadata:
+      labels:
+        app: custom-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "9100"
+    spec:
+      hostPID: true
+      hostNetwork: true
+      containers:
+      - name: exporter
+        image: devops-showcase/exporter:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 9100
+          name: metrics
+        env:
+        - name: EXPORTER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: exporter-config
+              key: EXPORTER_PORT
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: rootfs
+          mountPath: /rootfs
+          readOnly: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+      volumes:
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: rootfs
+        hostPath:
+          path: /
+      tolerations:
+      - operator: Exists

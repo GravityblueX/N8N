@@ -1,0 +1,173 @@
+---
+- name: 部署监控系统
+  hosts: k8s_masters[0]
+  become_user: "{{ ansible_user }}"
+  tasks:
+    - name: 创建monitoring命名空间
+      kubernetes.core.k8s:
+        name: monitoring
+        api_version: v1
+        kind: Namespace
+        state: present
+        kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    
+    - name: 添加Prometheus Helm仓库
+      kubernetes.core.helm_repository:
+        name: prometheus-community
+        repo_url: https://prometheus-community.github.io/helm-charts
+        state: present
+    
+    - name: 添加Grafana Helm仓库
+      kubernetes.core.helm_repository:
+        name: grafana
+        repo_url: https://grafana.github.io/helm-charts
+        state: present
+    
+    - name: 更新Helm仓库
+      kubernetes.core.helm:
+        name: dummy
+        state: absent
+        update_repo_cache: yes
+    
+    - name: 部署Prometheus Operator
+      kubernetes.core.helm:
+        name: prometheus-stack
+        chart_ref: prometheus-community/kube-prometheus-stack
+        release_namespace: monitoring
+        create_namespace: yes
+        values:
+          grafana:
+            adminPassword: "admin123"
+            service:
+              type: NodePort
+              nodePort: 30300
+            persistence:
+              enabled: true
+              size: 10Gi
+          prometheus:
+            prometheusSpec:
+              retention: 30d
+              storageSpec:
+                volumeClaimTemplate:
+                  spec:
+                    accessModes: ["ReadWriteOnce"]
+                    resources:
+                      requests:
+                        storage: 50Gi
+            service:
+              type: NodePort
+              nodePort: 30900
+          alertmanager:
+            service:
+              type: NodePort
+              nodePort: 30930
+        kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    
+    - name: 等待Prometheus组件就绪
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: monitoring
+        label_selectors:
+          - app.kubernetes.io/name=grafana
+        wait: true
+        wait_condition:
+          type: Available
+          status: "True"
+        wait_timeout: 600
+        kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+
+- name: 配置自定义监控
+  hosts: monitoring
+  become: yes
+  tasks:
+    - name: 安装Node Exporter
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz"
+        dest: /tmp/node_exporter.tar.gz
+    
+    - name: 解压Node Exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp
+        remote_src: yes
+        creates: /tmp/node_exporter-1.6.1.linux-amd64
+    
+    - name: 安装Node Exporter二进制文件
+      copy:
+        src: /tmp/node_exporter-1.6.1.linux-amd64/node_exporter
+        dest: /usr/local/bin/node_exporter
+        mode: '0755'
+        remote_src: yes
+    
+    - name: 创建node_exporter用户
+      user:
+        name: node_exporter
+        system: yes
+        shell: /bin/false
+        home: /
+        create_home: no
+    
+    - name: 创建Node Exporter systemd服务
+      copy:
+        content: |
+          [Unit]
+          Description=Node Exporter
+          Wants=network-online.target
+          After=network-online.target
+          
+          [Service]
+          User=node_exporter
+          Group=node_exporter
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter \
+              --web.listen-address=:9100 \
+              --path.procfs=/proc \
+              --path.sysfs=/sys \
+              --collector.filesystem.ignored-mount-points='^/(dev|proc|sys|var/lib/docker/.+)($|/)' \
+              --collector.filesystem.ignored-fs-types='^(autofs|binfmt_misc|cgroup|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|sysfs|tracefs)$'
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/node_exporter.service
+        mode: '0644'
+      notify:
+        - reload systemd
+        - start node_exporter
+    
+    - name: 部署自定义监控脚本
+      copy:
+        content: |
+          #!/bin/bash
+          # 磁盘使用率监控脚本
+          THRESHOLD=85
+          
+          df -h | awk 'NR>1 {print $5,$1}' | while read output; do
+            usage=$(echo $output | awk '{print $1}' | sed 's/%//g')
+            partition=$(echo $output | awk '{print $2}')
+            
+            if [ $usage -ge $THRESHOLD ]; then
+              echo "WARNING: Disk usage on $partition is ${usage}%" | logger -t disk-monitor
+              # 发送告警到Prometheus
+              echo "disk_usage_warning{partition=\"$partition\"} $usage" | curl -X POST --data-binary @- http://localhost:9091/metrics/job/disk-monitor/instance/$(hostname)
+            fi
+          done
+        dest: /opt/monitoring-scripts/disk-monitor.sh
+        mode: '0755'
+    
+    - name: 创建磁盘监控定时任务
+      cron:
+        name: "Disk usage monitoring"
+        minute: "*/5"
+        job: "/opt/monitoring-scripts/disk-monitor.sh"
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+    
+    - name: start node_exporter
+      systemd:
+        name: node_exporter
+        enabled: yes
+        state: started

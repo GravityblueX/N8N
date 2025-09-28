@@ -1,0 +1,28 @@
+[k8s_masters]
+master-01 ansible_host=10.0.1.10 node_role=master
+master-02 ansible_host=10.0.1.11 node_role=master
+master-03 ansible_host=10.0.1.12 node_role=master
+
+[k8s_workers]
+worker-01 ansible_host=10.0.1.20 node_role=worker
+worker-02 ansible_host=10.0.1.21 node_role=worker
+worker-03 ansible_host=10.0.1.22 node_role=worker
+
+[k8s_cluster:children]
+k8s_masters
+k8s_workers
+
+[monitoring]
+monitor-01 ansible_host=10.0.1.30 role=prometheus
+monitor-02 ansible_host=10.0.1.31 role=grafana
+
+[all:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/.ssh/id_rsa
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+[k8s_cluster:vars]
+k8s_version=1.28.2
+docker_version=24.0.6
+flannel_version=0.22.3
+helm_version=3.12.3

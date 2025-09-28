@@ -1,0 +1,207 @@
+groups:
+  - name: system.rules
+    interval: 30s
+    rules:
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "高CPU使用率告警"
+          description: "实例 {{ $labels.instance }} CPU使用率已达到 {{ $value }}%，持续超过2分钟"
+
+      - alert: CriticalCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 1m
+        labels:
+          severity: critical
+          team: infrastructure
+        annotations:
+          summary: "CPU使用率严重告警"
+          description: "实例 {{ $labels.instance }} CPU使用率已达到 {{ $value }}%，系统可能无响应"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "高内存使用率告警"
+          description: "实例 {{ $labels.instance }} 内存使用率已达到 {{ $value }}%"
+
+      - alert: CriticalMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          team: infrastructure
+        annotations:
+          summary: "内存使用率严重告警"
+          description: "实例 {{ $labels.instance }} 内存使用率已达到 {{ $value }}%，可能触发OOM"
+
+      # 磁盘使用率告警（核心功能：提前预警磁盘打满风险）
+      - alert: DiskSpaceWarning
+        expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes * 100 > 85
+        for: 1m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "磁盘空间预警"
+          description: "实例 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 磁盘使用率已达到 {{ $value }}%"
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes * 100 > 90
+        for: 30s
+        labels:
+          severity: critical
+          team: infrastructure
+        annotations:
+          summary: "磁盘空间严重告警"
+          description: "实例 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 磁盘使用率已达到 {{ $value }}%，即将耗尽存储空间"
+
+      # 磁盘预测告警（提前预警）
+      - alert: DiskWillFillIn4Hours
+        expr: predict_linear(node_filesystem_free_bytes[1h], 4*3600) < 0
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "磁盘空间预测告警"
+          description: "基于当前使用趋势，实例 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 将在4小时内耗尽存储空间"
+
+      # 网络异常告警
+      - alert: HighNetworkTraffic
+        expr: rate(node_network_receive_bytes_total[5m]) > 100*1024*1024
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "网络流量异常"
+          description: "实例 {{ $labels.instance }} 接收网络流量超过100MB/s"
+
+      # 系统负载告警
+      - alert: HighSystemLoad
+        expr: node_load15 / count(count(node_cpu_seconds_total) by (cpu)) by (instance) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "系统负载过高"
+          description: "实例 {{ $labels.instance }} 15分钟平均负载为 {{ $value }}，超过CPU核心数的2倍"
+
+  - name: application.rules
+    interval: 30s
+    rules:
+      # API服务可用性告警
+      - alert: APIServiceDown
+        expr: up{job="devops-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: application
+        annotations:
+          summary: "API服务不可用"
+          description: "API服务实例 {{ $labels.instance }} 已下线超过1分钟"
+
+      # API响应时间告警
+      - alert: APIHighResponseTime
+        expr: histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          team: application
+        annotations:
+          summary: "API响应时间过长"
+          description: "API 95%分位响应时间超过2秒，当前值: {{ $value }}s"
+
+      # API错误率告警
+      - alert: APIHighErrorRate
+        expr: rate(api_requests_total{status=~"5.."}[5m]) / rate(api_requests_total[5m]) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: application
+        annotations:
+          summary: "API错误率过高"
+          description: "API 5XX错误率超过5%，当前值: {{ $value }}%"
+
+  - name: kubernetes.rules
+    interval: 30s
+    rules:
+      # Pod重启告警
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pod频繁重启"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} 在过去15分钟内重启了 {{ $value }} 次"
+
+      # Pod资源使用告警
+      - alert: PodMemoryUsageHigh
+        expr: container_memory_working_set_bytes / container_spec_memory_limit_bytes * 100 > 90
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pod内存使用率过高"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} 内存使用率达到 {{ $value }}%"
+
+      # Node状态告警
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Node节点异常"
+          description: "Node {{ $labels.node }} 状态异常，不可调度"
+
+  - name: custom.rules
+    interval: 30s
+    rules:
+      # 自定义exporter告警
+      - alert: CustomExporterDown
+        expr: up{job="custom-exporter"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          team: monitoring
+        annotations:
+          summary: "自定义监控异常"
+          description: "自定义Exporter {{ $labels.instance }} 已离线"
+
+      # 服务可用性告警
+      - alert: ServiceUnavailable
+        expr: custom_service_availability == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: infrastructure
+        annotations:
+          summary: "服务不可用"
+          description: "服务 {{ $labels.service }} 在 {{ $labels.instance }} 上不可用"
+
+      # 阈值超限告警
+      - alert: ThresholdExceeded
+        expr: increase(custom_alert_threshold_exceeded_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          team: monitoring
+        annotations:
+          summary: "监控阈值超限"
+          description: "指标 {{ $labels.metric }} 在 {{ $labels.instance }} 上超过预设阈值"

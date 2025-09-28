@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  # FastAPI应用
+  api:
+    build:
+      context: ./app/api
+      dockerfile: Dockerfile
+    container_name: devops-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - devops-network
+    labels:
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/path=/metrics"
+      - "prometheus.io/port=8000"
+
+  # 自定义Exporter
+  custom-exporter:
+    build:
+      context: ./app/exporter
+      dockerfile: Dockerfile
+    container_name: devops-exporter
+    ports:
+      - "9100:9100"
+    privileged: true
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command: ["python", "custom_exporter.py", "--port", "9100"]
+    restart: unless-stopped
+    networks:
+      - devops-network
+    labels:
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/path=/metrics"
+      - "prometheus.io/port=9100"
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: devops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - devops-network
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: devops-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    restart: unless-stopped
+    networks:
+      - devops-network
+
+  # Redis (用于缓存和队列)
+  redis:
+    image: redis:7-alpine
+    container_name: devops-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - devops-network
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  redis-data:
+
+networks:
+  devops-network:
+    driver: bridge

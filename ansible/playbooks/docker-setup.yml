@@ -1,0 +1,142 @@
+---
+- name: 安装和配置Docker
+  hosts: k8s_cluster
+  become: yes
+  vars:
+    docker_packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    
+  tasks:
+    - name: 删除旧版本Docker
+      package:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+        state: absent
+    
+    - name: 安装Docker依赖包
+      package:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+    
+    - name: 添加Docker官方GPG密钥
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: 添加Docker APT仓库
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: 更新包缓存
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: 安装指定版本的Docker
+      package:
+        name: "{{ item }}={{ docker_version }}*"
+        state: present
+      loop: "{{ docker_packages }}"
+      when: ansible_os_family == "Debian"
+    
+    - name: 配置Docker daemon
+      copy:
+        content: |
+          {
+            "exec-opts": ["native.cgroupdriver=systemd"],
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "100m",
+              "max-file": "3"
+            },
+            "storage-driver": "overlay2",
+            "storage-opts": [
+              "overlay2.override_kernel_check=true"
+            ],
+            "registry-mirrors": [
+              "https://docker.mirrors.ustc.edu.cn",
+              "https://hub-mirror.c.163.com"
+            ],
+            "insecure-registries": [
+              "harbor.local:80"
+            ],
+            "data-root": "/var/lib/docker",
+            "live-restore": true,
+            "userland-proxy": false,
+            "experimental": false,
+            "metrics-addr": "0.0.0.0:9323",
+            "experimental": true
+          }
+        dest: /etc/docker/daemon.json
+        mode: '0644'
+      notify: restart docker
+    
+    - name: 创建docker用户组
+      group:
+        name: docker
+        state: present
+    
+    - name: 将当前用户添加到docker组
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+    
+    - name: 启动并启用Docker服务
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+    
+    - name: 启动并启用containerd服务
+      systemd:
+        name: containerd
+        enabled: yes
+        state: started
+    
+    - name: 验证Docker安装
+      command: docker --version
+      register: docker_version_output
+      changed_when: false
+    
+    - name: 显示Docker版本
+      debug:
+        msg: "Docker版本: {{ docker_version_output.stdout }}"
+    
+    - name: 配置Docker日志轮转
+      copy:
+        content: |
+          /var/lib/docker/containers/*/*.log {
+              daily
+              rotate 7
+              compress
+              delaycompress
+              missingok
+              create 644 root root
+              postrotate
+                  /bin/kill -USR1 $(cat /var/run/docker.pid 2> /dev/null) 2> /dev/null || true
+              endscript
+          }
+        dest: /etc/logrotate.d/docker
+        mode: '0644'
+
+  handlers:
+    - name: restart docker
+      systemd:
+        name: docker
+        state: restarted

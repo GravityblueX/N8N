@@ -1,0 +1,26 @@
+---
+# 主要部署playbook - 快速部署标准环境
+- name: 部署DevOps标准环境
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: 显示部署开始信息
+      debug:
+        msg: "开始部署DevOps标准环境，目标：12分钟内完成节点上线"
+
+- import_playbook: system-setup.yml
+- import_playbook: docker-setup.yml
+- import_playbook: k8s-setup.yml
+- import_playbook: monitoring-setup.yml
+
+- name: 完成部署并验证
+  hosts: all
+  tasks:
+    - name: 部署完成通知
+      debug:
+        msg: "DevOps标准环境部署完成！服务已启动，目标可用性：99.98%"
+    
+    - name: 记录部署时间
+      local_action:
+        module: shell
+        cmd: "echo 'Deployment completed at: $(date)' >> /tmp/deployment-time.log"

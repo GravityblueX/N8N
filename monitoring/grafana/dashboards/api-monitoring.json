@@ -1,0 +1,245 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "API服务监控 - 应用性能分析",
+    "tags": ["api", "application", "performance"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "API服务状态",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"devops-api\"}",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"options": {"0": {"text": "DOWN"}}, "type": "value"},
+              {"options": {"1": {"text": "UP"}}, "type": "value"}
+            ],
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "请求总数 (QPS)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(api_requests_total[5m])",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "平均响应时间",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 2}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "错误率",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(api_requests_total{status=~\"5..\"}[5m]) / rate(api_requests_total[5m]) * 100",
+            "legendFormat": "5XX错误率"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "请求速率趋势",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(api_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}} - {{instance}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6}
+      },
+      {
+        "id": 6,
+        "title": "响应时间分布",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.90, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "90th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "99th percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6}
+      },
+      {
+        "id": 7,
+        "title": "HTTP状态码分布",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(api_requests_total{status=~\"2..\"}[5m])",
+            "legendFormat": "2XX Success"
+          },
+          {
+            "expr": "rate(api_requests_total{status=~\"4..\"}[5m])",
+            "legendFormat": "4XX Client Error"
+          },
+          {
+            "expr": "rate(api_requests_total{status=~\"5..\"}[5m])",
+            "legendFormat": "5XX Server Error"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14}
+      },
+      {
+        "id": 8,
+        "title": "系统资源使用 (API Pod)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{name=~\".*devops-api.*\"}[5m]) * 100",
+            "legendFormat": "CPU使用率 - {{name}}"
+          },
+          {
+            "expr": "container_memory_working_set_bytes{name=~\".*devops-api.*\"} / 1024 / 1024",
+            "legendFormat": "内存使用 (MB) - {{name}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14}
+      },
+      {
+        "id": 9,
+        "title": "API端点性能排行",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, avg by(endpoint) (histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))))",
+            "format": "table",
+            "refId": "A"
+          },
+          {
+            "expr": "topk(10, sum by(endpoint) (rate(api_requests_total[5m])))",
+            "format": "table",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 22}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "instance",
+          "type": "query",
+          "query": "label_values(api_requests_total, instance)",
+          "refresh": 1,
+          "multi": true,
+          "includeAll": true
+        }
+      ]
+    }
+  }
+}

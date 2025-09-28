@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-automation
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Shanghai
+      - N8N_METRICS=true
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=n8n123456
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./workflows:/opt/workflows:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - automation-network
+    labels:
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/path=/metrics"
+      - "prometheus.io/port=5678"
+
+  # Redis for n8n queue
+  redis-n8n:
+    image: redis:7-alpine
+    container_name: n8n-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-n8n-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - automation-network
+
+  # PostgreSQL for n8n persistence
+  postgres-n8n:
+    image: postgres:15-alpine
+    container_name: n8n-postgres
+    environment:
+      POSTGRES_DB: n8n
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: n8n123456
+    volumes:
+      - postgres-n8n-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - automation-network
+
+volumes:
+  n8n-data:
+  redis-n8n-data:
+  postgres-n8n-data:
+
+networks:
+  automation-network:
+    driver: bridge

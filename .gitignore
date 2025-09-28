@@ -1,0 +1,97 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+*.log
+
+# Kubernetes secrets
+**/secrets/
+**/secret.yaml
+**/secret.yml
+
+# Ansible vault files
+**/vault.yml
+**/vault.yaml
+
+# Temporary files
+/tmp/
+*.tmp
+*.temp
+
+# Logs
+logs/
+*.log
+
+# Backup files
+*.backup
+*.bak
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.p12
+
+# Local configuration
+local.conf
+local.env
+
+# Monitoring data
+**/data/
+prometheus-data/
+grafana-data/
+redis-data/
+
+# n8n data
+n8n-data/
+
+# System files
+.ssh/
+known_hosts
