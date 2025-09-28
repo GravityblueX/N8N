@@ -1,11 +1,11 @@
-# DevOps技能展示项目 Makefile
+# DevOps-Nexus | DevOps技能枢纽 Makefile
 # 提供便捷的项目管理命令
 
 .PHONY: help build deploy clean test monitor setup-env
 
 # 默认目标
 help:
-	@echo "DevOps技能展示项目 - 可用命令:"
+	@echo "DevOps-Nexus 技能枢纽 - 可用命令:"
 	@echo ""
 	@echo "  make setup-env    - 设置开发环境"
 	@echo "  make build        - 构建Docker镜像"
@@ -31,8 +31,8 @@ setup-env:
 # 构建Docker镜像
 build:
 	@echo "构建Docker镜像..."
-	docker build -t devops-showcase/api:latest ./app/api
-	docker build -t devops-showcase/exporter:latest ./app/exporter
+	docker build -t devops-nexus/api:latest ./app/api
+	docker build -t devops-nexus/exporter:latest ./app/exporter
 	@echo "Docker镜像构建完成"
 
 # 本地部署
@@ -139,8 +139,8 @@ clean:
 	@echo "停止docker-compose服务..."
 	@docker-compose down -v 2>/dev/null || true
 	@echo "清理Docker镜像..."
-	@docker rmi devops-showcase/api:latest 2>/dev/null || true
-	@docker rmi devops-showcase/exporter:latest 2>/dev/null || true
+	@docker rmi devops-nexus/api:latest 2>/dev/null || true
+	@docker rmi devops-nexus/exporter:latest 2>/dev/null || true
 	@echo "清理Kubernetes资源..."
 	@kubectl delete namespace devops-showcase 2>/dev/null || true
 	@echo "清理临时文件..."
@@ -231,7 +231,7 @@ EOF
 demo: build deploy-local monitor
 	@echo ""
 	@echo "==================================================================="
-	@echo "                    DevOps技能展示演示"
+	@echo "                 DevOps-Nexus 技能枢纽演示"
 	@echo "==================================================================="
 	@echo ""
 	@echo "🚀 演示环境已启动！"

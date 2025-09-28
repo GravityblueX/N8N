@@ -1,11 +1,11 @@
-# 🚀 DevOps技能展示项目
+# 🚀 DevOps-Nexus | DevOps技能枢纽
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-Compatible-green.svg)](https://kubernetes.io/)
 [![Ansible](https://img.shields.io/badge/Ansible-Automated-red.svg)](https://www.ansible.com/)
 
-一个全面展示DevOps核心技能的综合性项目，涵盖Linux系统管理、容器化、自动化运维、监控告警等关键领域。
+🌟 **DevOps技能枢纽** - 连接开发与运维的技能汇聚点，全面展示DevOps核心技能的综合性项目，涵盖Linux系统管理、容器化、自动化运维、监控告警等关键领域。
 
 ## ⭐ 核心亮点
 
@@ -19,7 +19,7 @@
 ## 项目架构
 
 ```
-devops-showcase/
+DevOps-Nexus/
 ├── app/                    # 应用程序
 │   ├── api/               # FastAPI微服务
 │   └── exporter/          # 自定义Prometheus Exporter
@@ -85,7 +85,7 @@ devops-showcase/
 ```bash
 # 克隆项目
 git clone https://github.com/GravityblueX/N8N.git
-cd N8N
+cd DevOps-Nexus
 
 # 一键启动演示环境
 make demo
